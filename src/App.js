@@ -3,38 +3,109 @@ import './App.css';
 
 const HEIGHT = 500;
 const WIDTH = 800;
-const PIPE_WIDTH = 50;
+const PIPE_WIDTH = 80;
 const MIN_PIPE_HEIGHT = 40;
+const FPS = 120;
 
-class Pipe {
-  constructor() {
-
+class Bird {
+  constructor(ctx) {
+    this.ctx = ctx;
+    this.x = 100;
+    this.y = 150;
   }
 
-  draw(ctx) {
 
+  draw(ctx) {
+    this.ctx.fillStyle = 'red';
+    this.ctx.beginPath();
+    this.ctx.arc(this.x, this.y, 15, 0, Math.PI * 2, true);
+    this.ctx.fill();
+  }
+
+  update = () => {
   }
 }
 
+
+class Pipe {
+  constructor(ctx, height, space) {
+    this.ctx = ctx;
+    this.isDead = false;
+
+    this.x = WIDTH;
+    this.y = height ? HEIGHT - height : 0;
+    this.width = PIPE_WIDTH;
+    this.height = height || MIN_PIPE_HEIGHT
+      + Math.random() * (HEIGHT - space - MIN_PIPE_HEIGHT * 2);
+  }
+
+  draw() {
+    this.ctx.fillStyle = '#114215';
+    this.ctx.fillRect(this.x, this.y, this.width, this.height);
+  }
+
+  update = () => {
+    this.x -= 1;
+    if ((this.x + PIPE_WIDTH) < 0) {
+      this.isDead = true;
+    }
+  }
+}
 
 class App extends Component {
   constructor(props) {
     super(props);
     this.canvasRef = React.createRef();
+    this.frameCount = 0;
+    this.space = 80;
+    this.pipes = [];
+    this.birds = [];
   }
+
 
   componentDidMount() {
-    const ctx = this.canvasRef.current.getContext('2d');
-    ctx.fillStyle = '#662324';
+    const ctx = this.getCtx();
 
-    // math.random -> 0,1 arası değer
-    const space = 80;
-    const firstPipeHeight = MIN_PIPE_HEIGHT + Math.random() * (HEIGHT - space - 2 * MIN_PIPE_HEIGHT);
-    const secondPipeHeight = HEIGHT - firstPipeHeight - space;
-    ctx.fillRect(WIDTH, 0, PIPE_WIDTH, firstPipeHeight);
-    ctx.fillRect(WIDTH, firstPipeHeight + space, PIPE_WIDTH, secondPipeHeight);
+    this.pipes = this.generatePipes();
+    this.birds = [new Bird(ctx)];
+
+    setInterval(this.gameLoop, 1000 / FPS);
   }
 
+getCtx = () => this.canvasRef.current.getContext('2d');
+
+
+  generatePipes = () => {
+    const ctx = this.getCtx();
+    const firstPipe = new Pipe(ctx, null, this.space);
+    const secondPipeHeight = HEIGHT - firstPipe.height - this.space;
+    const secondPipe = new Pipe(ctx, secondPipeHeight, 80);
+    return [firstPipe, secondPipe];
+  }
+
+  gameLoop = () => {
+    this.update();
+    this.draw();
+  }
+
+  update = () => {
+    this.frameCount = this.frameCount + 1;
+    if (this.frameCount % 320 === 0) {
+      const pipes = this.generatePipes();
+      this.pipes.push(...pipes);
+    }
+
+    this.pipes.forEach(pipe => pipe.update());
+    this.pipes = this.pipes.filter(pipe => !pipe.isDead);
+    // this.birds.forEach(bird => bird.update());
+  }
+
+  draw = () => {
+    const ctx = this.canvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    this.pipes.forEach(pipe => pipe.draw());
+    this.birds.forEach(bird => bird.draw());
+  }
 
   render() {
     return (
