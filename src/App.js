@@ -1,3 +1,4 @@
+/* global document */
 import React, { Component } from 'react';
 import './App.css';
 
@@ -10,10 +11,12 @@ const FPS = 120;
 class Bird {
   constructor(ctx) {
     this.ctx = ctx;
+    this.isDead = false;
     this.x = 100;
     this.y = 150;
+    this.gravity = 0.03;
+    this.velocity = 0;
   }
-
 
   draw(ctx) {
     this.ctx.fillStyle = 'red';
@@ -23,20 +26,26 @@ class Bird {
   }
 
   update = () => {
+    this.velocity += this.gravity;
+    this.gravity = Math.min(0.1, this.gravity);
+    this.y += this.velocity;
+  }
+
+  jump = () => {
+    this.velocity = -1.8;
   }
 }
-
 
 class Pipe {
   constructor(ctx, height, space) {
     this.ctx = ctx;
     this.isDead = false;
-
     this.x = WIDTH;
-    this.y = height ? HEIGHT - height : 0;
+    this.y = height
+      ? HEIGHT - height
+      : 0;
     this.width = PIPE_WIDTH;
-    this.height = height || MIN_PIPE_HEIGHT
-      + Math.random() * (HEIGHT - space - MIN_PIPE_HEIGHT * 2);
+    this.height = height || MIN_PIPE_HEIGHT + Math.random() * (HEIGHT - space - MIN_PIPE_HEIGHT * 2);
   }
 
   draw() {
@@ -57,23 +66,27 @@ class App extends Component {
     super(props);
     this.canvasRef = React.createRef();
     this.frameCount = 0;
-    this.space = 80;
+    this.space = 100;
     this.pipes = [];
     this.birds = [];
+    this.deadPipes = 0;
   }
-
 
   componentDidMount() {
+    document.addEventListener('keydown', this.onKeyDown);
     const ctx = this.getCtx();
-
     this.pipes = this.generatePipes();
     this.birds = [new Bird(ctx)];
-
-    setInterval(this.gameLoop, 1000 / FPS);
+    this.loop = setInterval(this.gameLoop, 1000 / FPS);
   }
 
-getCtx = () => this.canvasRef.current.getContext('2d');
+  getCtx = () => this.canvasRef.current.getContext('2d');
 
+  onKeyDown = (e) => {
+    if (e.code === 'Space') {
+      this.birds[0].jump();
+    }
+  }
 
   generatePipes = () => {
     const ctx = this.getCtx();
@@ -88,6 +101,7 @@ getCtx = () => this.canvasRef.current.getContext('2d');
     this.draw();
   }
 
+
   update = () => {
     this.frameCount = this.frameCount + 1;
     if (this.frameCount % 320 === 0) {
@@ -95,15 +109,39 @@ getCtx = () => this.canvasRef.current.getContext('2d');
       this.pipes.push(...pipes);
     }
 
+    // update pipe positions
     this.pipes.forEach(pipe => pipe.update());
     this.pipes = this.pipes.filter(pipe => !pipe.isDead);
-    // this.birds.forEach(bird => bird.update());
+
+
+    // update birds position
+    this.birds.forEach(bird => bird.update());
+
+    if (this.isGameOver()) {
+      alert('game over');
+      clearInterval(this.loop);
+    }
+  }
+
+  isGameOver = () => {
+    // detect collisions
+    let gameOver = false;
+    this.birds.forEach((bird) => {
+      this.pipes.forEach((pipe) => {
+        if (bird.y < 0 || bird.y > HEIGHT || (bird.x > pipe.x && bird.x < pipe.x + pipe.width && bird.y > pipe.y && bird.y < pipe.y + pipe.height)) {
+          gameOver = true;
+        }
+      });
+    });
+
+    return gameOver;
   }
 
   draw = () => {
     const ctx = this.canvasRef.current.getContext('2d');
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
     this.pipes.forEach(pipe => pipe.draw());
+
     this.birds.forEach(bird => bird.draw());
   }
 
@@ -115,10 +153,17 @@ getCtx = () => this.canvasRef.current.getContext('2d');
           id="canvas"
           width={WIDTH}
           height={HEIGHT}
-          style={{ marginTop: '24px', border: '3px solid #c3c3c3' }}
+          style={{
+            marginTop: '24px',
+            border: '3px solid #c3c3c3',
+          }}
         />
+        <div>
+          <span>
+            Puanınız:
+          </span>
+        </div>
       </div>
-
     );
   }
 }
