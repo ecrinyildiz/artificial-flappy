@@ -101,23 +101,25 @@ class App extends Component {
     this.draw();
   }
 
-
   update = () => {
     this.frameCount = this.frameCount + 1;
     if (this.frameCount % 320 === 0) {
       const pipes = this.generatePipes();
       this.pipes.push(...pipes);
     }
+    if (this.frameCount % 20 === 0) {
+      this.deadPipes += 0.5;
+    }
 
     // update pipe positions
     this.pipes.forEach(pipe => pipe.update());
     this.pipes = this.pipes.filter(pipe => !pipe.isDead);
 
-
     // update birds position
     this.birds.forEach(bird => bird.update());
 
     if (this.isGameOver()) {
+      this.bestScore = this.deadPipes * 100;
       alert('game over');
       clearInterval(this.loop);
     }
@@ -143,6 +145,9 @@ class App extends Component {
     this.pipes.forEach(pipe => pipe.draw());
 
     this.birds.forEach(bird => bird.draw());
+    ctx.fillStyle = '#ccc';
+    ctx.font = '50px serif';
+    ctx.fillText(`Skor: ${(this.deadPipes * 100).toFixed()}`, 10, 480);
   }
 
   render() {
@@ -158,11 +163,7 @@ class App extends Component {
             border: '3px solid #c3c3c3',
           }}
         />
-        <div>
-          <span>
-            Puanınız:
-          </span>
-        </div>
+
       </div>
     );
   }
