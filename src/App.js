@@ -3,7 +3,7 @@ import React, { Component } from 'react';
 import { NeuralNetwork } from './neural/nn';
 import './App.css';
 
-const TOTAL_BIRDS = 100;
+const TOTAL_BIRDS = 500;
 const HEIGHT = 500;
 const WIDTH = 800;
 const PIPE_WIDTH = 80;
@@ -17,13 +17,13 @@ class Bird {
     this.age = 0;
     this.fitness = 0;
     this.x = 100;
-    this.y = 150;
+    this.y = 250;
     this.gravity = 0.03;
     this.velocity = 0;
 
     this.brain = brain
       ? brain.copy()
-      : new NeuralNetwork(2, 5, 1);
+      : new NeuralNetwork(4, 8, 1);
   }
 
   draw(ctx) {
@@ -36,7 +36,7 @@ class Bird {
     this.ctx.stroke();
   }
 
-  update = () => {
+  update = (spaceStartY, spaceEndY) => {
     this.age += 1;
     this.velocity += this.gravity;
     this.gravity = Math.min(0.1, this.gravity);
@@ -48,17 +48,17 @@ class Bird {
       this.y = HEIGHT;
     }
 
-    this.think();
+    this.think(spaceStartY, spaceEndY);
   }
 
-  think = () => {
+  think = (spaceStartY, spaceEndY) => {
     // inputs:
     // [bird.y, bird.x]
-    // [closestPipe.x, pipe.y],
-    // [closestPipe.x, pipe.y + pipe.height],
     const inputs = [
       this.x / WIDTH,
       this.y / HEIGHT,
+      spaceStartY / HEIGHT,
+      spaceEndY / HEIGHT,
     ];
     // range 0, 1
     const output = this.brain.predict(inputs);
@@ -112,19 +112,37 @@ class App extends Component {
     super(props);
     this.canvasRef = React.createRef();
     this.frameCount = 0;
+    this.generateAge = 0;
     this.space = 90;
     this.pipes = [];
     this.birds = [];
     this.deadPipes = 0;
     this.deadBirds = [];
+    this.state = {
+      gameSpeed: FPS,
+    };
   }
 
   componentDidMount() {
     // user only mode document.addEventListener('keydown', this.onKeyDown);
-    this.pipes = this.generatePipes();
-    this.birds = this.generateBirds();
-    this.loop = setInterval(this.gameLoop, 1000 / FPS);
+
+    this.startGame();
   }
+
+  startGame = (bird) => {
+    this.frameCount = 0;
+    this.generateAge += 1;
+
+    clearInterval(this.loop);
+    this.deadPipes = 0;
+    const ctx = this.canvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    this.pipes = this.generatePipes();
+    this.birds = this.generateBirds(bird);
+    this.loop = setInterval(this.gameLoop, 1000 / this.state.gameSpeed);
+  }
+
 
   getCtx = () => this.canvasRef.current.getContext('2d');
 
@@ -135,11 +153,11 @@ class App extends Component {
   //   }
   // }
 
-  generateBirds = (brain) => {
+  generateBirds = (bird) => {
     const birds = [];
     const ctx = this.getCtx();
     for (let i = 0; i < TOTAL_BIRDS; i += 1) {
-      birds.push(new Bird(ctx, brain));
+      birds.push(new Bird(ctx, bird && bird.brain));
     }
     return birds;
   };
@@ -159,7 +177,7 @@ class App extends Component {
 
   update = () => {
     this.frameCount = this.frameCount + 1;
-    if (this.frameCount % 320 === 0) {
+    if (this.frameCount % (this.state.gameSpeed * 3) === 0) {
       const pipes = this.generatePipes();
       this.pipes.push(...pipes);
     }
@@ -171,7 +189,11 @@ class App extends Component {
     this.pipes.forEach(pipe => pipe.update());
 
     // update birds position
-    this.birds.forEach(bird => bird.update());
+    this.birds.forEach((bird) => {
+      const nextPipe = this.getNextPipe(bird);
+      const spaceStartY = nextPipe.y + nextPipe.height;
+      bird.update(spaceStartY, spaceStartY + this.space);
+    });
 
     // delete off-screen pipes
     this.pipes = this.pipes.filter(pipe => !pipe.isDead);
@@ -192,12 +214,18 @@ class App extends Component {
       this.deadBirds.forEach((deadBird) => {
         deadBird.fitness = deadBird.age / totalAge;
       });
-
-      // TODO
+      this.deadBirds.sort((a, b) => a.fitness <= b.fitness);
       const strongest = this.deadBirds[0];
-      strongest.mutate(0.1);
-      console.log(strongest);
-      this.birds = this.generateBirds(strongest.brain);
+      strongest.mutate();
+      this.startGame(strongest);
+    }
+  }
+
+  getNextPipe = (bird) => {
+    for (let i = 0; i < this.pipes.length; i++) {
+      if (this.pipes[i].x > bird.x) {
+        return this.pipes[i];
+      }
     }
   }
 
@@ -246,9 +274,11 @@ class App extends Component {
     this.pipes.forEach(pipe => pipe.draw());
 
     this.birds.forEach(bird => bird.draw());
-    ctx.fillStyle = '#ccc';
-    ctx.font = '50px serif';
-    ctx.fillText(`Skor: ${(this.deadPipes * 100).toFixed()}`, 10, 480);
+    ctx.fillStyle = '#FF00FF';
+    ctx.font = '25px serif';
+    ctx.fillText(`Score: ${(this.deadPipes * 100).toFixed()}`, 10, 480);
+    ctx.fillText(`Alive Bird: ${(this.birds.length)}`, 10, 40);
+    ctx.fillText(`Generate Age: ${(this.generateAge)}`, 10, 60);
   }
 
   render() {
@@ -264,12 +294,19 @@ class App extends Component {
             border: '3px solid #c3c3c3',
           }}
         />
+        <div>
+          <input
+            type="range"
+            min="120"
+            max="1000"
+            value={this.state.gameSpeed}
+            onChange={e => this.setState({
+              gameSpeed: e.target.value,
+            }, this.startGame)}
+          />
+        </div>
         <div onClick={() => this.setState({})}>
         Hayatta kalma süresi:
-          {' '}
-          {' '}
-          {' '}
-          {' '}
           {' '}
           {' '}
           {(this.frameCount / 100).toFixed()}
